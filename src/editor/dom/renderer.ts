@@ -3,15 +3,26 @@
 import type { DocNode, TextNode } from "../types";
 
 /**
+ * 末尾・先頭のスペースを &nbsp; に変換（HTMLで表示されるように）
+ */
+function preserveWhitespace(text: string): string {
+  if (!text) return text;
+  // 末尾のスペースを &nbsp; に
+  return text.replace(/ $/g, "\u00A0");
+}
+
+/**
  * TextNode を DOM Node にレンダリング
  */
 export function renderTextNode(textNode: TextNode): Node {
+  const displayText = preserveWhitespace(textNode.text);
+
   if (textNode.marks.length === 0) {
-    return document.createTextNode(textNode.text);
+    return document.createTextNode(displayText);
   }
 
   const element: HTMLElement = document.createElement("span");
-  element.textContent = textNode.text;
+  element.textContent = displayText;
 
   for (const mark of textNode.marks) {
     switch (mark.type) {
