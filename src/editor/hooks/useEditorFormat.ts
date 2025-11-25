@@ -1,6 +1,10 @@
 import { useCallback } from "react";
 import type { EditorState, DocNode, MarkType } from "../types";
-import { applyMarkToRange, normalizeSelection } from "../model";
+import {
+  applyMarkToRange,
+  clearMarksInRange,
+  normalizeSelection,
+} from "../model";
 
 interface UseEditorFormatOptions {
   stateRef: React.MutableRefObject<EditorState>;
@@ -26,11 +30,28 @@ export function useEditorFormat(options: UseEditorFormatOptions) {
       const { from, to } = normalizeSelection(sel);
       if (from === to) return;
 
-      const newDoc = applyMarkToRange(stateRef.current.doc, from, to, markType, true);
+      const newDoc = applyMarkToRange(
+        stateRef.current.doc,
+        from,
+        to,
+        markType,
+        true,
+      );
       updateState(newDoc, sel);
     },
     [readSelection, stateRef, updateState],
   );
+
+  const clearFormat = useCallback(() => {
+    const sel = readSelection();
+    if (!sel) return;
+
+    const { from, to } = normalizeSelection(sel);
+    if (from === to) return;
+
+    const newDoc = clearMarksInRange(stateRef.current.doc, from, to);
+    updateState(newDoc, sel);
+  }, [readSelection, stateRef, updateState]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -68,6 +89,7 @@ export function useEditorFormat(options: UseEditorFormatOptions) {
 
   return {
     applyFormat,
+    clearFormat,
     handleKeyDown,
   };
 }

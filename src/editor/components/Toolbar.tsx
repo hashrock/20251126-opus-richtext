@@ -41,6 +41,7 @@ function ToolbarButton({
 
 interface ToolbarProps {
   onApplyFormat: (markType: MarkType) => void;
+  onClearFormat: () => void;
   onUndo: () => void;
   onRedo: () => void;
   canUndo: boolean;
@@ -49,6 +50,7 @@ interface ToolbarProps {
 
 export function Toolbar({
   onApplyFormat,
+  onClearFormat,
   onUndo,
   onRedo,
   canUndo,
@@ -94,6 +96,13 @@ export function Toolbar({
           onClick={() => onApplyFormat("code")}
           style={{ fontFamily: "monospace" }}
         />
+      </div>
+
+      <div style={{ width: "1px", background: "#ccc" }} />
+
+      {/* Clear format */}
+      <div style={{ display: "flex" }}>
+        <ToolbarButton label="Clear" onClick={onClearFormat} />
       </div>
     </div>
   );

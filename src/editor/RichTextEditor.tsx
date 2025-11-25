@@ -67,7 +67,7 @@ export function RichTextEditor({
   });
 
   // フォーマット処理
-  const { applyFormat, handleKeyDown } = useEditorFormat({
+  const { applyFormat, clearFormat, handleKeyDown } = useEditorFormat({
     stateRef,
     readSelection,
     updateState,
@@ -117,6 +117,7 @@ export function RichTextEditor({
     <div style={{ border: "1px solid #ccc", borderRadius: "4px" }}>
       <Toolbar
         onApplyFormat={applyFormat}
+        onClearFormat={clearFormat}
         onUndo={handleUndo}
         onRedo={handleRedo}
         canUndo={canUndo(history)}

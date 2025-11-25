@@ -376,6 +376,75 @@ export function normalizeDoc(doc: DocNode): DocNode {
   return newDoc;
 }
 
+// 範囲のマークをすべてクリア
+export function clearMarksInRange(
+  doc: DocNode,
+  from: number,
+  to: number,
+): DocNode {
+  if (from === to) return doc;
+
+  const newDoc = cloneDoc(doc);
+  let currentPos = 0;
+
+  for (const para of newDoc.children) {
+    const newChildren: TextNode[] = [];
+
+    for (const textNode of para.children) {
+      const nodeStart = currentPos;
+      const nodeEnd = currentPos + textNode.text.length;
+
+      if (nodeEnd <= from || nodeStart >= to) {
+        // 範囲外
+        newChildren.push(cloneTextNode(textNode));
+      } else if (nodeStart >= from && nodeEnd <= to) {
+        // 完全に範囲内 - マークをクリア
+        newChildren.push({
+          type: "text",
+          text: textNode.text,
+          marks: [],
+        });
+      } else {
+        // 部分的に範囲内
+        const overlapStart = Math.max(from, nodeStart);
+        const overlapEnd = Math.min(to, nodeEnd);
+
+        const beforeEnd = overlapStart - nodeStart;
+        const afterStart = overlapEnd - nodeStart;
+
+        if (beforeEnd > 0) {
+          newChildren.push({
+            type: "text",
+            text: textNode.text.slice(0, beforeEnd),
+            marks: [...textNode.marks],
+          });
+        }
+
+        newChildren.push({
+          type: "text",
+          text: textNode.text.slice(beforeEnd, afterStart),
+          marks: [],
+        });
+
+        if (afterStart < textNode.text.length) {
+          newChildren.push({
+            type: "text",
+            text: textNode.text.slice(afterStart),
+            marks: [...textNode.marks],
+          });
+        }
+      }
+
+      currentPos = nodeEnd;
+    }
+
+    para.children = newChildren;
+    currentPos += 1;
+  }
+
+  return normalizeDoc(newDoc);
+}
+
 // 範囲にマークを適用
 export function applyMarkToRange(
   doc: DocNode,
