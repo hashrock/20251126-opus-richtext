@@ -455,30 +455,33 @@ export function RichTextEditor({
   }, [parseDOM, readDOMSelection, updateState, state.selection]);
 
   // キーボードショートカット
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.metaKey || e.ctrlKey) {
-      let markType: MarkType | null = null;
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey) {
+        let markType: MarkType | null = null;
 
-      switch (e.key.toLowerCase()) {
-        case "b":
-          markType = "bold";
-          break;
-        case "i":
-          markType = "italic";
-          break;
-        case "u":
-          markType = "underline";
-          break;
+        switch (e.key.toLowerCase()) {
+          case "b":
+            markType = "bold";
+            break;
+          case "i":
+            markType = "italic";
+            break;
+          case "u":
+            markType = "underline";
+            break;
+        }
+
+        if (markType) {
+          e.preventDefault();
+          applyFormatFromDOM(markType);
+        }
       }
+    },
+    [readDOMSelection, state.doc, updateState],
+  );
 
-      if (markType) {
-        e.preventDefault();
-        toggleFormat(markType);
-      }
-    }
-  }, []);
-
-  // フォーマットをトグル
+  // フォーマットをトグル（state.selectionを使用）
   const toggleFormat = useCallback(
     (markType: MarkType) => {
       const { from, to } = normalizeSelection(state.selection);
@@ -489,6 +492,22 @@ export function RichTextEditor({
       updateState(newDoc);
     },
     [state.doc, state.selection, updateState],
+  );
+
+  // DOMの選択位置を直接読み取ってフォーマットを適用
+  const applyFormatFromDOM = useCallback(
+    (markType: MarkType) => {
+      const sel = readDOMSelection();
+      if (!sel) return;
+
+      const { from, to } = normalizeSelection(sel);
+      if (from === to) return; // 選択範囲がない場合は何もしない
+
+      // 範囲内のマーク状態を確認してトグル
+      const newDoc = applyMarkToRange(state.doc, from, to, markType, true);
+      updateState(newDoc, sel);
+    },
+    [state.doc, readDOMSelection, updateState],
   );
 
   // MutationObserver（DOM監視）
@@ -550,7 +569,7 @@ export function RichTextEditor({
       type="button"
       onMouseDown={(e) => {
         e.preventDefault(); // フォーカスを維持
-        toggleFormat(markType);
+        applyFormatFromDOM(markType);
       }}
       style={{
         padding: "4px 8px",
