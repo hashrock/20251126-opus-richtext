@@ -8,7 +8,9 @@ export interface SelectionPosition {
 /**
  * DOM Selection から絶対オフセットを計算
  */
-export function readDOMSelection(editor: HTMLElement): SelectionPosition | null {
+export function readDOMSelection(
+  editor: HTMLElement,
+): SelectionPosition | null {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) return null;
 
@@ -18,38 +20,49 @@ export function readDOMSelection(editor: HTMLElement): SelectionPosition | null 
   if (!editor.contains(range.commonAncestorContainer)) return null;
 
   const getOffset = (container: Node, offset: number): number => {
+    // 段落を走査してオフセットを計算
+    const paragraphs = editor.querySelectorAll("p[data-para], p, div");
     let pos = 0;
-    const walker = document.createTreeWalker(
-      editor,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
 
-    let node: Node | null;
-    while ((node = walker.nextNode())) {
-      if (node === container) {
-        return pos + offset;
-      }
-      pos += node.textContent?.length || 0;
+    for (let i = 0; i < paragraphs.length; i++) {
+      const para = paragraphs[i];
 
-      // 段落の終わりをチェック
-      const parent = node.parentElement;
-      if (parent && node.nextSibling === null) {
-        const grandParent = parent.closest("p[data-para], p, div");
-        if (grandParent && grandParent.nextElementSibling) {
-          // 次の段落との間に改行を追加
-          const next = walker.nextNode();
-          if (next) {
-            const nextGrandParent = next.parentElement?.closest(
-              "p[data-para], p, div"
-            );
-            if (nextGrandParent !== grandParent) {
-              pos += 1;
-            }
-            // walker を戻す（次の処理のため）
-            walker.previousNode();
+      // この段落内にcontainerがあるか
+      if (para.contains(container) || para === container) {
+        // この段落内のテキストノードを走査
+        const walker = document.createTreeWalker(
+          para,
+          NodeFilter.SHOW_TEXT,
+          null,
+        );
+
+        let node: Node | null;
+        while ((node = walker.nextNode())) {
+          if (node === container) {
+            return pos + offset;
           }
+          pos += node.textContent?.length || 0;
         }
+
+        // テキストノードが見つからない場合（空の段落など）
+        // containerが段落自体の場合
+        return pos;
+      }
+
+      // 段落内のテキスト長を加算
+      const walker = document.createTreeWalker(
+        para,
+        NodeFilter.SHOW_TEXT,
+        null,
+      );
+      let node: Node | null;
+      while ((node = walker.nextNode())) {
+        pos += node.textContent?.length || 0;
+      }
+
+      // 次の段落がある場合、改行を加算
+      if (i < paragraphs.length - 1) {
+        pos += 1;
       }
     }
 
@@ -67,47 +80,90 @@ export function readDOMSelection(editor: HTMLElement): SelectionPosition | null 
  */
 function findDOMPosition(
   editor: HTMLElement,
-  targetPos: number
+  targetPos: number,
 ): { node: Node; offset: number } | null {
+  const paragraphs = editor.querySelectorAll("p[data-para], p, div");
   let pos = 0;
-  const walker = document.createTreeWalker(
-    editor,
-    NodeFilter.SHOW_TEXT,
-    null
-  );
 
-  let node: Node | null;
-  let lastNode: Node | null = null;
+  for (let i = 0; i < paragraphs.length; i++) {
+    const para = paragraphs[i];
 
-  while ((node = walker.nextNode())) {
-    const len = node.textContent?.length || 0;
+    // 段落内のテキストノードを収集
+    const walker = document.createTreeWalker(para, NodeFilter.SHOW_TEXT, null);
 
-    if (pos + len >= targetPos) {
-      return { node, offset: targetPos - pos };
+    let node: Node | null;
+    let lastNodeInPara: Node | null = null;
+    let paraTextLength = 0;
+
+    while ((node = walker.nextNode())) {
+      const len = node.textContent?.length || 0;
+
+      if (pos + len >= targetPos) {
+        return { node, offset: targetPos - pos };
+      }
+
+      pos += len;
+      paraTextLength += len;
+      lastNodeInPara = node;
     }
 
-    pos += len;
-    lastNode = node;
+    // 空の段落（テキストノードがない）の場合
+    if (lastNodeInPara === null) {
+      // targetPos がこの段落の位置なら、段落自体を返す
+      if (
+        pos >= targetPos ||
+        (i === paragraphs.length - 1 && pos === targetPos)
+      ) {
+        // 空の段落の場合、<br> があればその前に配置
+        const br = para.querySelector("br");
+        if (br) {
+          return { node: para, offset: 0 };
+        }
+        return { node: para, offset: 0 };
+      }
+    }
 
-    // 段落間の改行を考慮
-    const parent = node.parentElement?.closest("p[data-para], p, div");
-    if (parent && parent.nextElementSibling) {
+    // 次の段落がある場合、改行分を加算
+    if (i < paragraphs.length - 1) {
       pos += 1;
-      if (pos > targetPos) {
-        return { node, offset: len };
+
+      // 改行の直後の位置（次の段落の先頭）
+      if (pos === targetPos) {
+        // 次の段落の先頭を返す
+        const nextPara = paragraphs[i + 1];
+        const nextWalker = document.createTreeWalker(
+          nextPara,
+          NodeFilter.SHOW_TEXT,
+          null,
+        );
+        const firstTextNode = nextWalker.nextNode();
+        if (firstTextNode) {
+          return { node: firstTextNode, offset: 0 };
+        }
+        // 次の段落が空の場合
+        return { node: nextPara, offset: 0 };
       }
     }
   }
 
-  // 末尾の場合
-  if (lastNode) {
-    return { node: lastNode, offset: lastNode.textContent?.length || 0 };
-  }
-
-  // テキストノードがない場合
-  const p = editor.querySelector("p");
-  if (p) {
-    return { node: p, offset: 0 };
+  // 末尾の場合 - 最後の段落の最後のテキストノードを返す
+  if (paragraphs.length > 0) {
+    const lastPara = paragraphs[paragraphs.length - 1];
+    const walker = document.createTreeWalker(
+      lastPara,
+      NodeFilter.SHOW_TEXT,
+      null,
+    );
+    let lastNode: Node | null = null;
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      lastNode = node;
+    }
+    if (lastNode) {
+      return { node: lastNode, offset: lastNode.textContent?.length || 0 };
+    }
+    // 空の段落
+    return { node: lastPara, offset: 0 };
   }
 
   return null;
@@ -118,7 +174,7 @@ function findDOMPosition(
  */
 export function applySelectionToDOM(
   editor: HTMLElement,
-  selection: SelectionPosition
+  selection: SelectionPosition,
 ): void {
   const anchorPos = findDOMPosition(editor, selection.anchor);
   const headPos = findDOMPosition(editor, selection.head);
