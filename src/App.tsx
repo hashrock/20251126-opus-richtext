@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { RichTextEditor } from "./editor";
-import type { EditorState } from "./editor";
+import type { EditorState, HistoryState } from "./editor";
 import "./App.css";
 
 function App() {
   const [editorState, setEditorState] = useState<EditorState | null>(null);
+  const [historyState, setHistoryState] = useState<HistoryState | null>(null);
   const [html, setHtml] = useState<string>("");
 
   const handleChange = (state: EditorState) => {
@@ -14,6 +15,10 @@ function App() {
     if (editor) {
       setHtml(editor.innerHTML);
     }
+  };
+
+  const handleHistoryChange = (history: HistoryState) => {
+    setHistoryState(history);
   };
 
   return (
@@ -28,7 +33,10 @@ function App() {
     >
       {/* Editor */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <RichTextEditor onChange={handleChange} />
+        <RichTextEditor
+          onChange={handleChange}
+          onHistoryChange={handleHistoryChange}
+        />
       </div>
 
       {/* Debug Panel */}
@@ -62,6 +70,30 @@ function App() {
               {editorState.selection.head}
             </div>
           )}
+        </div>
+
+        {/* History */}
+        <div
+          style={{
+            padding: "12px",
+            background: "#f5f5f5",
+            borderRadius: "4px",
+            fontFamily: "monospace",
+            fontSize: "12px",
+          }}
+        >
+          <div
+            style={{ fontWeight: "bold", marginBottom: "8px", color: "#666" }}
+          >
+            History
+          </div>
+          {historyState && (
+            <div>
+              <div>Undo stack: {historyState.undoStack.length} items</div>
+              <div>Redo stack: {historyState.redoStack.length} items</div>
+            </div>
+          )}
+          {!historyState && <div>Undo: 0, Redo: 0</div>}
         </div>
 
         {/* Document Model */}

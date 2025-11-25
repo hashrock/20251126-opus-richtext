@@ -44,7 +44,6 @@ export function renderDocToElement(doc: DocNode, editor: HTMLElement): void {
 
   for (const para of doc.children) {
     const p = document.createElement("p");
-    p.setAttribute("data-para", "true");
 
     if (
       para.children.length === 0 ||

@@ -15,7 +15,7 @@ describe("selection", () => {
 
   describe("readDOMSelection", () => {
     it("should read selection in single paragraph", () => {
-      editor.innerHTML = '<p data-para="true">Hello</p>';
+      editor.innerHTML = "<p>Hello</p>";
       const textNode = editor.querySelector("p")!.firstChild!;
 
       const range = document.createRange();
@@ -31,7 +31,7 @@ describe("selection", () => {
     });
 
     it("should read selection at end of single paragraph", () => {
-      editor.innerHTML = '<p data-para="true">Hello</p>';
+      editor.innerHTML = "<p>Hello</p>";
       const textNode = editor.querySelector("p")!.firstChild!;
 
       const range = document.createRange();
@@ -47,8 +47,7 @@ describe("selection", () => {
     });
 
     it("should read selection in second paragraph", () => {
-      editor.innerHTML =
-        '<p data-para="true">Hello</p><p data-para="true">World</p>';
+      editor.innerHTML = "<p>Hello</p><p>World</p>";
       const secondPara = editor.querySelectorAll("p")[1];
       const textNode = secondPara.firstChild!;
 
@@ -66,8 +65,7 @@ describe("selection", () => {
     });
 
     it("should read selection at end of second paragraph", () => {
-      editor.innerHTML =
-        '<p data-para="true">Hello</p><p data-para="true">World</p>';
+      editor.innerHTML = "<p>Hello</p><p>World</p>";
       const secondPara = editor.querySelectorAll("p")[1];
       const textNode = secondPara.firstChild!;
 
@@ -85,8 +83,7 @@ describe("selection", () => {
     });
 
     it("should handle empty paragraph", () => {
-      editor.innerHTML =
-        '<p data-para="true">Hello</p><p data-para="true"><br></p>';
+      editor.innerHTML = "<p>Hello</p><p><br></p>";
       const secondPara = editor.querySelectorAll("p")[1];
 
       const range = document.createRange();
@@ -105,7 +102,7 @@ describe("selection", () => {
 
   describe("applySelectionToDOM", () => {
     it("should apply selection in single paragraph", () => {
-      editor.innerHTML = '<p data-para="true">Hello</p>';
+      editor.innerHTML = "<p>Hello</p>";
 
       applySelectionToDOM(editor, { anchor: 2, head: 2 });
 
@@ -117,7 +114,7 @@ describe("selection", () => {
     });
 
     it("should apply selection at end of paragraph", () => {
-      editor.innerHTML = '<p data-para="true">Hello</p>';
+      editor.innerHTML = "<p>Hello</p>";
 
       applySelectionToDOM(editor, { anchor: 5, head: 5 });
 
@@ -127,8 +124,7 @@ describe("selection", () => {
     });
 
     it("should apply selection in second paragraph", () => {
-      editor.innerHTML =
-        '<p data-para="true">Hello</p><p data-para="true">World</p>';
+      editor.innerHTML = "<p>Hello</p><p>World</p>";
 
       // Position 6 = start of "World"
       applySelectionToDOM(editor, { anchor: 6, head: 6 });
@@ -141,8 +137,7 @@ describe("selection", () => {
     });
 
     it("should apply selection at end of second paragraph", () => {
-      editor.innerHTML =
-        '<p data-para="true">Hello</p><p data-para="true">World</p>';
+      editor.innerHTML = "<p>Hello</p><p>World</p>";
 
       // Position 11 = end of "World"
       applySelectionToDOM(editor, { anchor: 11, head: 11 });
@@ -153,8 +148,7 @@ describe("selection", () => {
     });
 
     it("should apply selection to empty paragraph", () => {
-      editor.innerHTML =
-        '<p data-para="true">Hello</p><p data-para="true"><br></p>';
+      editor.innerHTML = "<p>Hello</p><p><br></p>";
 
       // Position 6 = start of empty paragraph
       applySelectionToDOM(editor, { anchor: 6, head: 6 });
@@ -167,8 +161,7 @@ describe("selection", () => {
     });
 
     it("should handle multiple empty paragraphs", () => {
-      editor.innerHTML =
-        '<p data-para="true">A</p><p data-para="true"><br></p><p data-para="true"><br></p>';
+      editor.innerHTML = "<p>A</p><p><br></p><p><br></p>";
 
       // Position 2 = first empty paragraph ("A" + newline)
       applySelectionToDOM(editor, { anchor: 2, head: 2 });

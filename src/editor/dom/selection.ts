@@ -21,7 +21,7 @@ export function readDOMSelection(
 
   const getOffset = (container: Node, offset: number): number => {
     // 段落を走査してオフセットを計算
-    const paragraphs = editor.querySelectorAll("p[data-para], p, div");
+    const paragraphs = editor.querySelectorAll("p");
     let pos = 0;
 
     for (let i = 0; i < paragraphs.length; i++) {

@@ -124,7 +124,7 @@ describe("renderer", () => {
       expect(container.querySelectorAll("p")).toHaveLength(2);
     });
 
-    it("should set data-para attribute on paragraphs", () => {
+    it("should render paragraph as p element", () => {
       const doc: DocNode = {
         type: "doc",
         children: [
@@ -135,9 +135,7 @@ describe("renderer", () => {
         ],
       };
       renderDocToElement(doc, container);
-      expect(container.querySelector("p")?.getAttribute("data-para")).toBe(
-        "true"
-      );
+      expect(container.querySelector("p")).not.toBeNull();
     });
 
     it("should clear existing content before rendering", () => {

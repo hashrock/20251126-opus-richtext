@@ -104,7 +104,7 @@ export function parseEditorDOM(
   const children: ParagraphNode[] = [];
 
   // 段落を収集
-  const paragraphs = editor.querySelectorAll("p[data-para], p, div");
+  const paragraphs = editor.querySelectorAll("p");
 
   if (paragraphs.length === 0) {
     // テキストノードのみの場合

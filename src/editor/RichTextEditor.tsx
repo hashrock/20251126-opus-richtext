@@ -16,19 +16,33 @@ import {
   applySelectionToDOM,
 } from "./dom";
 import { Toolbar } from "./components/Toolbar";
+import {
+  createHistoryState,
+  pushHistory,
+  undo,
+  redo,
+  canUndo,
+  canRedo,
+  type HistoryState,
+} from "./history";
 
 interface RichTextEditorProps {
   initialContent?: string;
   onChange?: (state: EditorState) => void;
+  onHistoryChange?: (history: HistoryState) => void;
 }
 
 export function RichTextEditor({
   initialContent,
   onChange,
+  onHistoryChange,
 }: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<EditorState>(() =>
     createInitialState(initialContent),
+  );
+  const [history, setHistory] = useState<HistoryState>(() =>
+    createHistoryState(),
   );
   const isComposing = useRef(false);
   const ignoreNextMutation = useRef(false);
@@ -74,18 +88,51 @@ export function RichTextEditor({
     [],
   );
 
-  // 状態更新
+  // 状態更新（履歴に追加）
   const updateState = useCallback(
-    (newDoc: DocNode, newSelection?: { anchor: number; head: number }) => {
+    (
+      newDoc: DocNode,
+      newSelection?: { anchor: number; head: number },
+      addToHistory = true,
+    ) => {
       const newState: EditorState = {
         doc: newDoc,
         selection: newSelection || state.selection,
       };
+
+      if (addToHistory) {
+        const newHistory = pushHistory(history, state);
+        setHistory(newHistory);
+        onHistoryChange?.(newHistory);
+      }
+
       setState(newState);
       onChange?.(newState);
     },
-    [state.selection, onChange],
+    [state, history, onChange, onHistoryChange],
   );
+
+  // Undo
+  const handleUndo = useCallback(() => {
+    const result = undo(history, state);
+    if (result) {
+      setHistory(result.history);
+      setState(result.state);
+      onChange?.(result.state);
+      onHistoryChange?.(result.history);
+    }
+  }, [history, state, onChange, onHistoryChange]);
+
+  // Redo
+  const handleRedo = useCallback(() => {
+    const result = redo(history, state);
+    if (result) {
+      setHistory(result.history);
+      setState(result.state);
+      onChange?.(result.state);
+      onHistoryChange?.(result.history);
+    }
+  }, [history, state, onChange, onHistoryChange]);
 
   // beforeinput ハンドラ
   const handleBeforeInput = useCallback(
@@ -177,9 +224,19 @@ export function RichTextEditor({
             }
           }
           break;
+
+        case "historyUndo":
+          e.preventDefault();
+          handleUndo();
+          break;
+
+        case "historyRedo":
+          e.preventDefault();
+          handleRedo();
+          break;
       }
     },
-    [state.doc, readSelection, updateState],
+    [state.doc, readSelection, updateState, handleUndo, handleRedo],
   );
 
   // Composition ハンドラ（IME対応）
@@ -218,27 +275,35 @@ export function RichTextEditor({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey) {
-        let markType: MarkType | null = null;
-
         switch (e.key.toLowerCase()) {
           case "b":
-            markType = "bold";
-            break;
+            e.preventDefault();
+            applyFormatFromDOM("bold");
+            return;
           case "i":
-            markType = "italic";
-            break;
+            e.preventDefault();
+            applyFormatFromDOM("italic");
+            return;
           case "u":
-            markType = "underline";
-            break;
-        }
-
-        if (markType) {
-          e.preventDefault();
-          applyFormatFromDOM(markType);
+            e.preventDefault();
+            applyFormatFromDOM("underline");
+            return;
+          case "z":
+            e.preventDefault();
+            if (e.shiftKey) {
+              handleRedo();
+            } else {
+              handleUndo();
+            }
+            return;
+          case "y":
+            e.preventDefault();
+            handleRedo();
+            return;
         }
       }
     },
-    [applyFormatFromDOM],
+    [applyFormatFromDOM, handleUndo, handleRedo],
   );
 
   // MutationObserver（DOM監視）
@@ -290,7 +355,13 @@ export function RichTextEditor({
 
   return (
     <div style={{ border: "1px solid #ccc", borderRadius: "4px" }}>
-      <Toolbar onApplyFormat={applyFormatFromDOM} />
+      <Toolbar
+        onApplyFormat={applyFormatFromDOM}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo(history)}
+        canRedo={canRedo(history)}
+      />
 
       {/* Editor */}
       <div
