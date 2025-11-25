@@ -47,26 +47,25 @@ export function RichTextEditor({
   const isComposing = useRef(false);
   const ignoreNextMutation = useRef(false);
 
-  // Model -> DOM レンダリング
-  const renderDoc = useCallback((doc: DocNode): void => {
-    const editor = editorRef.current;
-    if (!editor) return;
+  // 最新の状態を常に参照できるようにするためのref
+  const stateRef = useRef(state);
+  const historyRef = useRef(history);
 
-    ignoreNextMutation.current = true;
-    renderDocToElement(doc, editor);
+  // stateが変わるたびにrefを更新
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
-    // 次のフレームでフラグをリセット
-    requestAnimationFrame(() => {
-      ignoreNextMutation.current = false;
-    });
-  }, []);
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
 
   // DOM -> Model パース
   const parseDOM = useCallback((): DocNode => {
     const editor = editorRef.current;
-    if (!editor) return state.doc;
-    return parseEditorDOM(editor, state.doc);
-  }, [state.doc]);
+    if (!editor) return stateRef.current.doc;
+    return parseEditorDOM(editor, stateRef.current.doc);
+  }, []);
 
   // Selection を DOM から読み取り
   const readSelection = useCallback((): {
@@ -78,30 +77,40 @@ export function RichTextEditor({
     return readDOMSelection(editor);
   }, []);
 
-  // Model の Selection を DOM に反映
-  const applySelection = useCallback(
-    (selection: { anchor: number; head: number }) => {
-      const editor = editorRef.current;
-      if (!editor) return;
-      applySelectionToDOM(editor, selection);
-    },
-    [],
-  );
-
-  // 状態更新（履歴に追加）
+  // 状態更新（履歴に追加）- refを使って最新の状態を参照
+  // 同期的にDOMを更新してから状態を更新する
   const updateState = useCallback(
     (
       newDoc: DocNode,
       newSelection?: { anchor: number; head: number },
       addToHistory = true,
     ) => {
+      const currentState = stateRef.current;
+      const currentHistory = historyRef.current;
+      const editor = editorRef.current;
+
       const newState: EditorState = {
         doc: newDoc,
-        selection: newSelection || state.selection,
+        selection: newSelection || currentState.selection,
       };
 
+      // 同期的にrefを更新（次のイベントハンドラで最新の状態を参照できるように）
+      stateRef.current = newState;
+
+      // 同期的にDOMを更新
+      if (editor && !isComposing.current) {
+        ignoreNextMutation.current = true;
+        renderDocToElement(newDoc, editor);
+        applySelectionToDOM(editor, newState.selection);
+        // 同期的にフラグをリセット（次のマイクロタスクで）
+        Promise.resolve().then(() => {
+          ignoreNextMutation.current = false;
+        });
+      }
+
       if (addToHistory) {
-        const newHistory = pushHistory(history, state);
+        const newHistory = pushHistory(currentHistory, currentState);
+        historyRef.current = newHistory;
         setHistory(newHistory);
         onHistoryChange?.(newHistory);
       }
@@ -109,32 +118,64 @@ export function RichTextEditor({
       setState(newState);
       onChange?.(newState);
     },
-    [state, history, onChange, onHistoryChange],
+    [onChange, onHistoryChange],
   );
 
   // Undo
   const handleUndo = useCallback(() => {
-    const result = undo(history, state);
+    const result = undo(historyRef.current, stateRef.current);
     if (result) {
+      const editor = editorRef.current;
+
+      // refを同期的に更新
+      stateRef.current = result.state;
+      historyRef.current = result.history;
+
+      // DOMを同期的に更新
+      if (editor) {
+        ignoreNextMutation.current = true;
+        renderDocToElement(result.state.doc, editor);
+        applySelectionToDOM(editor, result.state.selection);
+        Promise.resolve().then(() => {
+          ignoreNextMutation.current = false;
+        });
+      }
+
       setHistory(result.history);
       setState(result.state);
       onChange?.(result.state);
       onHistoryChange?.(result.history);
     }
-  }, [history, state, onChange, onHistoryChange]);
+  }, [onChange, onHistoryChange]);
 
   // Redo
   const handleRedo = useCallback(() => {
-    const result = redo(history, state);
+    const result = redo(historyRef.current, stateRef.current);
     if (result) {
+      const editor = editorRef.current;
+
+      // refを同期的に更新
+      stateRef.current = result.state;
+      historyRef.current = result.history;
+
+      // DOMを同期的に更新
+      if (editor) {
+        ignoreNextMutation.current = true;
+        renderDocToElement(result.state.doc, editor);
+        applySelectionToDOM(editor, result.state.selection);
+        Promise.resolve().then(() => {
+          ignoreNextMutation.current = false;
+        });
+      }
+
       setHistory(result.history);
       setState(result.state);
       onChange?.(result.state);
       onHistoryChange?.(result.history);
     }
-  }, [history, state, onChange, onHistoryChange]);
+  }, [onChange, onHistoryChange]);
 
-  // beforeinput ハンドラ
+  // beforeinput ハンドラ - stateRefを使って最新の状態を参照
   const handleBeforeInput = useCallback(
     (e: InputEvent) => {
       if (isComposing.current) return;
@@ -149,7 +190,7 @@ export function RichTextEditor({
             const sel = readSelection();
             if (!sel) return;
 
-            let newDoc = state.doc;
+            let newDoc = stateRef.current.doc;
             const { from, to } = normalizeSelection(sel);
 
             // 選択範囲があれば削除
@@ -172,7 +213,7 @@ export function RichTextEditor({
             const sel = readSelection();
             if (!sel) return;
 
-            let newDoc = state.doc;
+            let newDoc = stateRef.current.doc;
             const { from, to } = normalizeSelection(sel);
 
             if (from !== to) {
@@ -193,7 +234,7 @@ export function RichTextEditor({
             if (!sel) return;
 
             const { from, to } = normalizeSelection(sel);
-            let newDoc = state.doc;
+            let newDoc = stateRef.current.doc;
 
             if (from !== to) {
               newDoc = deleteText(newDoc, from, to);
@@ -212,7 +253,7 @@ export function RichTextEditor({
             if (!sel) return;
 
             const { from, to } = normalizeSelection(sel);
-            let newDoc = state.doc;
+            let newDoc = stateRef.current.doc;
             const docLen = getDocLength(newDoc);
 
             if (from !== to) {
@@ -236,7 +277,7 @@ export function RichTextEditor({
           break;
       }
     },
-    [state.doc, readSelection, updateState, handleUndo, handleRedo],
+    [readSelection, updateState, handleUndo, handleRedo],
   );
 
   // Composition ハンドラ（IME対応）
@@ -251,9 +292,9 @@ export function RichTextEditor({
     requestAnimationFrame(() => {
       const newDoc = parseDOM();
       const sel = readSelection();
-      updateState(newDoc, sel || state.selection);
+      updateState(newDoc, sel || stateRef.current.selection);
     });
-  }, [parseDOM, readSelection, updateState, state.selection]);
+  }, [parseDOM, readSelection, updateState]);
 
   // DOMの選択位置を直接読み取ってフォーマットを適用
   const applyFormatFromDOM = useCallback(
@@ -265,10 +306,16 @@ export function RichTextEditor({
       if (from === to) return; // 選択範囲がない場合は何もしない
 
       // 範囲内のマーク状態を確認してトグル
-      const newDoc = applyMarkToRange(state.doc, from, to, markType, true);
+      const newDoc = applyMarkToRange(
+        stateRef.current.doc,
+        from,
+        to,
+        markType,
+        true,
+      );
       updateState(newDoc, sel);
     },
-    [state.doc, readSelection, updateState],
+    [readSelection, updateState],
   );
 
   // キーボードショートカット
@@ -324,7 +371,7 @@ export function RichTextEditor({
       if (hasRelevantMutation) {
         const newDoc = parseDOM();
         const sel = readSelection();
-        updateState(newDoc, sel || state.selection);
+        updateState(newDoc, sel || stateRef.current.selection, false);
       }
     });
 
@@ -335,23 +382,27 @@ export function RichTextEditor({
     });
 
     return () => observer.disconnect();
-  }, [parseDOM, readSelection, updateState, state.selection]);
+  }, [parseDOM, readSelection, updateState]);
 
-  // 初回レンダリング
+  // 初回レンダリングとネイティブイベントリスナーの設定
   useEffect(() => {
-    renderDoc(state.doc);
-  }, []);
+    const editor = editorRef.current;
+    if (editor) {
+      renderDocToElement(state.doc, editor);
+      applySelectionToDOM(editor, state.selection);
 
-  // 状態変更時に DOM を更新
-  useEffect(() => {
-    if (!isComposing.current) {
-      renderDoc(state.doc);
-      // 選択位置を復元
-      requestAnimationFrame(() => {
-        applySelection(state.selection);
-      });
+      // ネイティブのbeforeinputイベントを使用（Reactのイベントでは inputType が取れない）
+      const nativeBeforeInput = (e: InputEvent) => {
+        handleBeforeInput(e);
+      };
+      editor.addEventListener("beforeinput", nativeBeforeInput);
+
+      return () => {
+        editor.removeEventListener("beforeinput", nativeBeforeInput);
+      };
     }
-  }, [state.doc, state.selection, renderDoc, applySelection]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handleBeforeInput]);
 
   return (
     <div style={{ border: "1px solid #ccc", borderRadius: "4px" }}>
@@ -368,7 +419,6 @@ export function RichTextEditor({
         ref={editorRef}
         contentEditable
         suppressContentEditableWarning
-        onBeforeInput={handleBeforeInput as unknown as React.FormEventHandler}
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
         onKeyDown={handleKeyDown}

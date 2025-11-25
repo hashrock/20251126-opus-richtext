@@ -185,15 +185,14 @@ describe("parser", () => {
     });
 
     it("should parse single paragraph", () => {
-      editor.innerHTML = '<p data-para="true">Hello</p>';
+      editor.innerHTML = "<p>Hello</p>";
       const result = parseEditorDOM(editor, fallbackDoc);
       expect(result.children).toHaveLength(1);
       expect(result.children[0].children[0].text).toBe("Hello");
     });
 
     it("should parse multiple paragraphs", () => {
-      editor.innerHTML =
-        '<p data-para="true">First</p><p data-para="true">Second</p>';
+      editor.innerHTML = "<p>First</p><p>Second</p>";
       const result = parseEditorDOM(editor, fallbackDoc);
       expect(result.children).toHaveLength(2);
       expect(result.children[0].children[0].text).toBe("First");
@@ -201,8 +200,7 @@ describe("parser", () => {
     });
 
     it("should parse formatted content", () => {
-      editor.innerHTML =
-        '<p data-para="true"><span style="font-weight: bold;">Bold</span></p>';
+      editor.innerHTML = '<p><span style="font-weight: bold;">Bold</span></p>';
       const result = parseEditorDOM(editor, fallbackDoc);
       expect(result.children[0].children[0].text).toBe("Bold");
       expect(result.children[0].children[0].marks[0].type).toBe("bold");
